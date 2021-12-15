@@ -1,0 +1,174 @@
+;; The first three lines of this file were inserted by DrRacket. They record metadata
+;; about the language level of this file in a form that our tools can easily process.
+#reader(lib "htdp-intermediate-lambda-reader.ss" "lang")((modname sol) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
+; AOC Day 3
+
+(require 2htdp/batch-io)
+
+(define input (map string->number (read-lines "input.txt")))
+
+; bcd->dec: Number -> Number
+; returns a given binary number in decimal form
+(check-expect (bcd->dec 10110) 22)
+
+(define (bcd->dec n)
+  (bcd->dec/a 0 0 n))
+
+; bcd->dec/a: Number Number Number -> Number
+; returns a given binary number in decimal form
+; *Accumulator*: seen is the number composed so far
+; *Accumulator*: digit is the current digit of the number
+(define (bcd->dec/a seen digit num)
+  (cond [(= num 0) seen]
+        [else (bcd->dec/a (+ seen (* (expt 2 digit) (modulo num 10))) (+ digit 1) (floor (/ num 10)))]))
+
+(define ex (list 00100
+                 11110
+                 10110
+                 10111
+                 10101
+                 01111
+                 00111
+                 11100
+                 10000
+                 11001
+                 00010
+                 01010))
+; A Common is a (make-common Number Number)
+(define-struct common [on off])
+
+; digit-length: Number -> Number
+; returns how many digits are in a number
+(check-expect (digit-length 0)    0)
+(check-expect (digit-length 1)    1)
+(check-expect (digit-length 10)   2)
+(check-expect (digit-length 100)  3)
+(check-expect (digit-length 1000) 4)
+
+(define (digit-length n)
+  (digit-length/a n 0))
+
+; digit-length/a: Number Number -> Number
+; returns how many digits are in a number
+; *Accumulator*: digits are the count of digits so far in the number
+(define (digit-length/a n digits)
+  (cond [(= n 0) digits]
+        [else (digit-length/a (floor (/ n 10)) (+ digits 1))]))
+
+; biggest: [ListOf Number] -> Number
+(define (biggest lst)
+  (cond [(empty? lst) 0]
+        [else (max (first lst) (biggest (rest lst)))]))
+
+; count-digit: Number [ListOf Number] -> Common
+; returns a Common representing the total of each type of digit in the given digit
+(check-expect (count-digit 0 ex) (make-common 5 7))
+
+(define (count-digit digit lst)
+  (count-digit/a digit 0 0 lst))
+
+; count-digit/a: Number Number Number [ListOf Number] -> Common
+; returns a Common representing the total of each type of digit in the given digit
+; *Accumulator*: on is a count of all on bits
+; *Accumulator*: off is a count of all off bits
+; (define (count-digit/a digit on off lst) ...)
+(define (count-digit/a digit on off lst)
+  (cond [(empty? lst) (make-common on off)]
+        [(= (modulo (floor (/ (first lst) (expt 10 digit))) 10) 1) (count-digit/a digit (+ on 1) off (rest lst))]
+        [else (count-digit/a digit on (+ off 1) (rest lst))]))
+
+; combine: [Common -> Number] [ListOf Number] -> Number
+; returns a combined number using the common count agreeing to the given function
+(define (combine comp lst)
+  (combine/a 0 0 comp lst))
+
+; combine/a: Number Number [Common -> Number] [ListOf Number] -> Number
+; returns a combined number using the common count agreeing to the given function
+; *Accumulator*: digit is the current digit being compared
+; *Accumulator*: seen is the number formed so far
+; (define (combine/a digit seen comp lst) ...)
+(define (combine/a digit seen comp lst)
+  (cond [(= digit (digit-length (biggest lst))) seen]
+        [else (combine/a (+ digit 1) (+ seen (* (expt 10 digit) (comp (count-digit digit lst)))) comp lst)]))
+
+
+; gamma-rate: [ListOf Number] -> Number
+; returns the gamma rate (most common value combination)
+(check-expect (gamma-rate ex) 10110)
+
+(define (gamma-rate lst)
+  (combine (λ (c)
+             (cond [(> (common-on c) (common-off c)) 1]
+                   [else 0])) lst))
+
+; epsilon-rate: [ListOf Number] -> Number
+; returns the epsilon rate (least common value combination)
+(check-expect (epsilon-rate ex) 01001)
+
+(define (epsilon-rate lst)
+  (combine (λ (c)
+             (cond [(> (common-on c) (common-off c)) 0]
+                   [(= (common-on c) (common-off c)) 0]
+                   [else 1])) lst))
+
+; power-consumption: [ListOf Number] -> Number
+; returns the total power consumption
+(check-expect (power-consumption ex) 198)
+
+(define (power-consumption lst)
+  (* (bcd->dec (gamma-rate   lst))
+     (bcd->dec (epsilon-rate lst))))
+
+(define ans1 (power-consumption input))
+
+; filter-by-bit: Number Number [ListOf Number] -> [ListOf Number]
+; returns all numbers where the given digit matches the expected value
+(define (filter-by-bit digit val lst)
+  (cond [(empty? lst) empty]
+        [(= (modulo (floor (/ (first lst) (expt 10 digit))) 10) val) (cons (first lst) (filter-by-bit digit val (rest lst)))]
+        [else (filter-by-bit digit val (rest lst))]))
+
+; filter-by-factor: [Number Number -> Boolean] [ListOf Number] -> [ListOf Number]
+(define (filter-by-factor fn lst)
+  (filter-by-factor/a (- (digit-length (biggest lst)) 1) fn lst))
+
+; filter-by-factor/a: Number [Number Number -> Boolean] [ListOf Number] -> [ListOf Number]
+(define (filter-by-factor/a digit fn lst)
+  (cond [(<= (length lst) 1) lst]
+        [(= digit -1) lst]
+        [else (filter-by-factor/a (- digit 1) fn (filter-by-bit digit (fn digit lst) lst))]))
+
+; oxygen-factor: Number [ListOf Number] -> Number
+(define (oxygen-factor digit l)
+  (local [
+          (define com (count-digit digit l))
+          ]
+    (cond [(> (common-on com) (common-off com)) 1]
+          [(= (common-on com) (common-off com)) 1]
+          [else 0])))
+
+; oxygen-rating: [ListOf Number] -> Number
+(define (oxygen-rating lst)
+  (bcd->dec (first (filter-by-factor oxygen-factor lst))))
+
+; CO2-factor: Number [ListOf Number] -> Number
+(define (CO2-factor digit l)
+  (local [
+          (define com (count-digit digit l))
+          ]
+    (cond [(< (common-on com) (common-off com)) 1]
+          [(= (common-on com) (common-off com)) 0]
+          [else 0])))
+
+; CO2-rating: [ListOf Number] -> Number
+(define (CO2-rating lst)
+  (bcd->dec (first (filter-by-factor CO2-factor lst))))
+
+; life-support-rating: [ListOf Number] -> Number
+(check-expect (life-support-rating ex) 230)
+
+(define (life-support-rating lst)482500
+  (* (oxygen-rating lst)
+     (CO2-rating    lst)))
+
+(define ans2 (life-support-rating input))

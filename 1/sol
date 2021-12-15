@@ -1,0 +1,26 @@
+;; The first three lines of this file were inserted by DrRacket. They record metadata
+;; about the language level of this file in a form that our tools can easily process.
+#reader(lib "htdp-intermediate-lambda-reader.ss" "lang")((modname sol) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
+; AOC Day 1
+
+(require 2htdp/batch-io)
+
+; fluxs: [ListOf Number] -> Number
+; returns the amount of times the measurment increased from the last
+(check-expect (fluxs (list 199 200 208 210 200 207 240 269 260 263)) 7)
+
+(define (fluxs lst)
+  (cond [(empty? (rest lst)) 0]
+        [(> (first (rest lst)) (first lst)) (+ 1 (fluxs (rest lst)))]
+        [else (fluxs (rest lst))]))
+
+(define ans (fluxs (map string->number (read-lines "input.txt"))))
+
+; sliding-window: [ListOf Number] -> Number
+(define (sliding-window lst)
+  (cond [(empty? (rest (rest lst))) empty]
+        (else (cons (+ (first lst) (first (rest lst)) (first (rest (rest lst)))) (sliding-window (rest lst))))))
+
+(check-expect (fluxs (sliding-window (list 199 200 208 210 200 207 240 269 260 263))) 5)
+
+(define ans2 (fluxs (sliding-window (map string->number (read-lines "input.txt")))))

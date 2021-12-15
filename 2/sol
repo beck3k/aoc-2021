@@ -1,0 +1,82 @@
+;; The first three lines of this file were inserted by DrRacket. They record metadata
+;; about the language level of this file in a form that our tools can easily process.
+#reader(lib "htdp-intermediate-lambda-reader.ss" "lang")((modname sol) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
+; AOC Day 2
+
+(require 2htdp/batch-io)
+
+(define s-ex (list "forward 5"
+                 "down 5"
+                 "forward 8"
+                 "up 3"
+                 "down 8"
+                 "forward 2"))
+
+; A Command is one of:
+; - (make-forward Number)
+; - (make-down    Number)
+; - (make-up      Number)
+(define-struct forward [dist])
+(define-struct down    [dist])
+(define-struct up      [dist])
+
+; parse-command: String -> Command
+; returns the corresponding command for a given input string
+(check-expect (parse-command "forward 5") (make-forward 5))
+(check-expect (parse-command "up 3")      (make-up 3))
+(check-expect (parse-command "down 5")    (make-down 5))
+(define (parse-command str)
+  (cond [(string=? (substring str 0 1) "f") (make-forward (string->number (substring str 8)))]
+        [(string=? (substring str 0 1) "u") (make-up (string->number (substring str 3)))]
+        [(string=? (substring str 0 1) "d") (make-down (string->number (substring str 5)))]))
+
+; parse: [ListOf String] -> [ListOf Command]
+(define (parse lst)
+  (cond [(empty? lst) empty]
+        [else (cons (parse-command (first lst)) (parse (rest lst)))]))
+
+(define ex (parse s-ex))
+
+
+; course/a: [ListOf Command] -> Number
+; returns the product of the horizontal and depth
+(check-expect (course ex) 150)
+
+(define (course lst)
+  (course/a 0 0 lst))
+
+; course/a: Number Number [ListOf Command] -> Number
+; returns the product of the horizontal and depth
+; *Accumulator*: depth is the current depth of the craft
+; *Accumulator*: h is the current horiztonal position of the craft
+; (define (course/a h depth lst) ...)
+
+(define (course/a h depth lst)
+  (cond [(empty? lst)           (* h depth)]
+        [(up?      (first lst)) (course/a h (- depth (up-dist (first lst))) (rest lst))]
+        [(down?    (first lst)) (course/a h (+ depth (down-dist (first lst))) (rest lst))]
+        [(forward? (first lst)) (course/a (+ h (forward-dist (first lst))) depth (rest lst))]))
+
+(define ans1 (course (parse (read-lines "input.txt"))))
+
+; aim: [ListOf Command] -> Number
+; returns the product of the aim and depth
+(check-expect (aim ex) 900)
+ 
+(define (aim lst)
+  (aim/a 0 0 0  lst))
+
+; aim/a: Number Number Number [ListOf Command] -> Number
+; returns the product of the horizotnal and depth
+; *Accumulator*: depth is the current depth of the craft
+; *Accumulator*: h is the current horiztonal position of the craft
+; *Accumulator*: aim is the current aim of the craft
+
+(define (aim/a aim depth h lst)
+  (cond [(empty? lst)           (* h depth)]
+        [(up?      (first lst)) (aim/a (- aim (up-dist (first lst))) depth h (rest lst))]
+        [(down?    (first lst)) (aim/a (+ aim (down-dist (first lst))) depth h (rest lst))]
+        [(forward? (first lst)) (aim/a aim (+ depth (* aim (forward-dist (first lst)))) (+ h (forward-dist (first lst))) (rest lst))]))
+
+(define ans2 (aim (parse (read-lines "input.txt"))))
+        
