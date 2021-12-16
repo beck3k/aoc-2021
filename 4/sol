@@ -12,9 +12,10 @@
 
 ; num-list: String String -> [ListOf Number]
 (check-expect (num-list "," "7,4,9,5") (list 7 4 9 5))
+(check-expect (num-list " " " 6 10  3 18  5") (list 6 10 3 18 5))
 
 (define (num-list split s)
-  (num-list/a split "" empty (explode s)))
+  (filter number? (num-list/a split "" empty (explode s))))
 
 ; num-list/a: String String [ListOf Number] [ListOf String] -> [ListOf Number]
 ; *Accumulator*: current is the current number being processed
@@ -23,13 +24,13 @@
 (define (num-list/a split current nums lst)
   (cond [(empty? lst) (append nums (list (string->number current)))]
         [(string=? (first lst) split) (num-list/a split "" (append nums (list (string->number current))) (rest lst))]
-        [else (num-list/a split (string-append (first lst) current) nums (rest lst))]))
+        [else (num-list/a split (string-append current (first lst)) nums (rest lst))]))
 
 (define ex-plays (num-list "," (first ex)))
 
 ; bingo-boards: [ListOf String] -> [ListOf [ListOf Number]]
-(check-expect (bingo-boards (list "6 9" "4 2 0" "" "4 2 0" "6 9")) (list (list 6 9 4 2 0)
-                                                                         (list 4 2 0 6 9)))
+(check-expect (bingo-boards (list "6 9" "4 2 0" "" "4 2 0" "6 9")) (list (list 4 2 0 6 9)
+                                                                         (list 6 9 4 2 0)))
 (define (bingo-boards lst)
   (bingo-boards/a empty empty lst))
 
@@ -39,5 +40,177 @@
 (define (bingo-boards/a current boards lst)
   (cond [(empty? lst) (cons current boards)]
         [(string=? (first lst) "") (bingo-boards/a empty (cons current boards) (rest lst))]
-        [else (bingo-boards/a (append (num-list " " (first lst)) current) boards (rest lst))]))
+        [else (bingo-boards/a (append current (num-list " " (first lst))) boards (rest lst))]))
 
+(define ex-boards (bingo-boards (rest (rest ex))))
+
+; verify-count: Number -> Boolean
+(check-expect (verify-count 40520) true)
+(check-expect (verify-count 21230) false)
+
+(define (verify-count n)
+  (cond [(= n 0) false]
+        [else (or (= (modulo n 10) 5)
+                  (verify-count (floor (/ n 10))))]))
+
+; horiz-check: Number [ListOf Number] -> Boolean
+(check-expect (horiz-check 0 (list 8 8 8 8 8
+                                   0 0 8 8 8
+                                   0 0 0 0 0
+                                   8 8 8 8 8
+                                   0 0 8 0 0)) true)
+(define (horiz-check n lst)
+  (verify-count (horiz-check/a n 0 0 lst)))
+
+; horiz-check/a: Number Number Number [ListOf Number] -> Number
+; *Accumulator*: index is the current index in the list
+; *Accumulator*: count is a representation of the wins in the board
+(define (horiz-check/a check index count lst)
+  (cond [(empty? lst) count]
+        [(= (first lst) check) (horiz-check/a check (+ index 1) (+ count (expt 10 (floor (/ index 5)))) (rest lst))]
+        [else (horiz-check/a check (+ index 1) count (rest lst))]))
+
+; vert-check: Number [ListOf Number] -> Boolean
+(check-expect (vert-check 0 (list 0 0 8 0 0
+                                  0 0 0 0 0
+                                  8 0 0 0 0
+                                  0 0 0 8 0
+                                  0 0 0 0 0)) true)
+(define (vert-check n lst)
+  (verify-count (vert-check/a n 0 0 lst)))
+
+; vert-check/a: Number Number Number [ListOf Number] -> Number
+; *Accumulator*: index is the current index in the list
+; *Accumulator*: count is a representation of the wins in the board
+(define (vert-check/a check index count lst)
+  (cond [(empty? lst) count]
+        [(= (first lst) check) (vert-check/a check (+ index 1) (+ count (expt 10 (modulo index 5))) (rest lst))]
+        [else (vert-check/a check (+ index 1) count (rest lst))]))
+
+; verify-diag: Number Number Boolean -> Number
+(define (verify-diag col row v)
+  (cond [(and (= col row) v) 1]
+        [else 0]))
+
+; FUCKINJG HELL I JUST FOUND OUT DIAGONAL ISN'T REQUIRED
+; diag-check: Number [ListOf Number] -> Boolean
+(check-expect (diag-check 0 (list 0 8 8 8 8
+                                  8 0 8 8 8
+                                  8 8 0 8 8
+                                  8 8 8 0 8
+                                  8 8 8 8 0)) true)
+(check-expect (diag-check 0 (list 0 8 8 8 8
+                                  8 0 8 8 8
+                                  8 8 8 8 8
+                                  8 8 8 0 8
+                                  8 8 8 8 0)) false)
+(check-expect (diag-check 0 (list 8 8 8 8 0
+                                  8 8 8 0 8
+                                  8 8 0 8 8
+                                  8 0 8 8 8
+                                  0 8 8 8 8)) true)
+(define (diag-check n lst)
+  (verify-count (diag-check/a n 0 0 0 lst)))
+
+; diag-check/a: Number Number Number Number [ListOf Number] -> Number
+; *Accumulator*: index is the current index in the list
+; *Accumulator*: left is a representation of the wins in the board
+; *Accumulator*: right is a representation of the wins in the board
+(define (diag-check/a check index left right lst)
+  (cond [(empty? lst) (+ left (* right 10))]
+        [else (diag-check/a check
+                            (+ index 1)
+                            (+ left (verify-diag (floor (/ index 5))
+                                                 (modulo index 5)
+                                                 (= (first lst) check)))
+                            (+ right (verify-diag (floor (/ index 5))
+                                                  (modulo (- 4 index) 5)
+                                                  (= (first lst) check)))
+                            (rest lst))]))
+
+; check-bingo: [ListOf Number] -> Boolean
+(define (check-bingo lst)
+  (or (horiz-check -1 lst)
+      (vert-check  -1 lst)))
+(check-expect (check-bingo (list -1 8 8 8 8
+                                 -1 8 8 8 8
+                                 -1 8 8 8 8
+                                 -1 8 8 8 8
+                                 -1 8 8 8 8)) true)
+
+; board-remove: Number [ListOf Number] -> [ListOf Number]
+(check-expect (board-remove 2 (list 1 2 3 4 5)) (list 1 -1 3 4 5))
+(define (board-remove n lst)
+  (map (λ(x) (cond [(= x n) -1]
+                   [else x])) lst))
+
+; boards-remove: Number [ListOf [ListOf Number]] -> [ListOf [ListOf Number]]
+(check-expect (boards-remove 2 (list (list 1 5 2 3 65 5)
+                                     (list 7 4 4 8 6 2)))
+              (list (list 1 5 -1 3 65 5)
+                    (list 7 4 4 8 6 -1)))
+
+(define (boards-remove n lst)
+  (map (λ (board) (board-remove n board)) lst))
+
+; win-find: [ListOf [ListOf Number]] -> [ListOf Number] / false
+(check-expect (win-find (list (list -1 8 8 8 8
+                                    -1 8 8 8 8
+                                    -1 8 8 8 8
+                                    -1 8 8 8 8
+                                    -1 8 8 8 8)
+                              (list 8 8 8 8 8
+                                    8 8 8 8 8
+                                    8 8 8 8 8
+                                    8 8 8 8 8
+                                    8 8 8 8 8)))
+              (list -1 8 8 8 8
+                    -1 8 8 8 8
+                    -1 8 8 8 8
+                    -1 8 8 8 8
+                    -1 8 8 8 8))
+(check-expect (win-find (list (list 8 8 8 8 8
+                                    8 8 8 8 8
+                                    8 8 8 8 8
+                                    8 8 8 8 8
+                                    8 8 8 8 8))) false)
+(define (win-find lst)
+  (cond [(empty? lst) false]
+        [(check-bingo (first lst)) (first lst)]
+        [else (win-find (rest lst))]))
+
+; sum-board: [ListOf Number] -> Number
+(check-expect (sum-board (list 2 2 -1)) 4)
+(define (sum-board lst)
+  (cond [(empty? lst) 0]
+        [(= (first lst) -1) (sum-board (rest lst))]
+        [else (+ (first lst)
+                 (sum-board (rest lst)))]))
+        
+
+; play-bingo: Number [ListOf Number] [ListOf [ListOf Number]] -> Number
+(define (play-bingo n nums boards)
+  (local [(define win (win-find boards))]
+    (cond [(empty? nums) false]
+          [(false?  win) (play-bingo (first nums) (rest nums) (boards-remove (first nums) boards))]
+          [else (* (sum-board win) n)])))
+
+; remove-wins: [ListOf [ListOf Number]] -> [ListOf [ListOf Number]]
+(define (remove-wins lst)
+  (filter (λ(board) (not (check-bingo board))) lst))
+
+; last-bingo: Number [ListOf Number] [ListOf [ListOf Number]] -> Number
+(define (last-bingo n nums boards)
+  (local [(define win (win-find boards))]
+    (cond [(empty? nums) boards]
+          [(< (length boards) 4) boards]
+          [(false?  win) (last-bingo (first nums) (rest nums) (boards-remove (first nums) boards))]
+          [else (last-bingo (first nums) (rest nums) (boards-remove (first nums) (remove-wins boards)))])))
+
+(define final (read-lines "input2.txt"))
+(define ans1 (play-bingo 0 (num-list "," (first final)) (bingo-boards (rest (rest final)))))
+(define ans2 (last-bingo 0 (num-list "," (first final)) (bingo-boards (rest (rest final)))))
+ans2
+(define t-nums (list 40 33 54 86 82 72 39 2 45 78 11 1 44 69 64))
+(win-find (boards-remove 40 ans2))
+(* (sum-board (list 45 -1 -1 -1 -1 -1 -1 -1 -1 64 -1 2 -1 -1 -1 -1 -1 -1 11 -1 -1 -1 -1 -1 -1)) 40)
